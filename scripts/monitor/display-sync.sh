@@ -27,6 +27,21 @@ def log_debug(message: str) -> None:
         print(f"[display-sync] {timestamp} {message}", file=sys.stderr, flush=True)
 
 
+def parse_embedded_json(text: str) -> dict[str, Any] | list[Any] | None:
+    decoder = json.JSONDecoder()
+    for marker in ("{", "["):
+        start = text.find(marker)
+        while start != -1:
+            try:
+                payload, _ = decoder.raw_decode(text[start:])
+                if isinstance(payload, (dict, list)):
+                    return payload
+            except json.JSONDecodeError:
+                pass
+            start = text.find(marker, start + 1)
+    return None
+
+
 def run_kscreen_json() -> dict[str, Any] | list[Any] | None:
     commands = (["kscreen-doctor", "--json", "-o"], ["kscreen-doctor", "-j", "-o"])
     for command in commands:
@@ -35,9 +50,15 @@ def run_kscreen_json() -> dict[str, Any] | list[Any] | None:
                 command,
                 capture_output=True,
                 text=True,
-                check=True,
+                check=False,
             )
-            return json.loads(completed.stdout)
+            payload = parse_embedded_json(completed.stdout)
+            if payload is None and completed.stderr:
+                payload = parse_embedded_json(completed.stderr)
+            if payload is not None:
+                return payload
+            if DEBUG:
+                log_debug(f"no JSON payload found ({' '.join(command)})")
         except Exception as exc:  # quiet by default during session transitions
             if DEBUG:
                 log_debug(f"query failed ({' '.join(command)}): {exc}")
