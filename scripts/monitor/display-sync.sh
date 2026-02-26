@@ -16,34 +16,41 @@ log_debug() {
 
 is_primary_enabled() {
   local output
-  local primary_block
   if [[ "${DEBUG}" == "1" ]]; then
-    output="$(kscreen-doctor -o 2>&1 || true)"
+    output="$(
+      kscreen-doctor --json -o 2>&1 \
+        || kscreen-doctor -j -o 2>&1 \
+        || true
+    )"
   else
-    output="$(kscreen-doctor -o 2>/dev/null || true)"
+    output="$(
+      kscreen-doctor --json -o 2>/dev/null \
+        || kscreen-doctor -j -o 2>/dev/null \
+        || true
+    )"
   fi
 
-  primary_block="$(awk -v output_name="${PRIMARY_OUTPUT}" '
-    /^Output:/ {
-      if (in_block) {
-        exit
-      }
-      if ($0 ~ ("(^|[[:space:]])" output_name "([[:space:]]|$)")) {
-        in_block = 1
-      }
-    }
-    in_block { print }
-  ' <<<"${output}")"
-
-  if [[ "${DEBUG}" == "1" ]]; then
-    if [[ -n "${primary_block}" ]]; then
-      log_debug "primary block found for ${PRIMARY_OUTPUT}"
-    else
-      log_debug "primary block not found for ${PRIMARY_OUTPUT}"
-    fi
+  if jq -e --arg name "${PRIMARY_OUTPUT}" '
+    def outputs:
+      if type == "object" and (.outputs? | type) == "array" then .outputs
+      elif type == "array" then .
+      else []
+      end;
+    any(
+      outputs[];
+      ((.name? // "") == $name)
+      and (
+        ((.enabled? // false) == true)
+        or ((.status? // "") == "enabled")
+      )
+    )
+  ' <<<"${output}" >/dev/null 2>&1; then
+    [[ "${DEBUG}" == "1" ]] && log_debug "primary ${PRIMARY_OUTPUT} detected as enabled"
+    return 0
   fi
 
-  [[ -n "${primary_block}" ]] && grep -qw "enabled" <<<"${primary_block}"
+  [[ "${DEBUG}" == "1" ]] && log_debug "primary ${PRIMARY_OUTPUT} detected as not enabled"
+  return 1
 }
 
 while true; do
