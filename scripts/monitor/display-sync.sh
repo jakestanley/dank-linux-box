@@ -16,19 +16,34 @@ log_debug() {
 
 is_primary_enabled() {
   local output
+  local primary_block
   if [[ "${DEBUG}" == "1" ]]; then
     output="$(kscreen-doctor -o 2>&1 || true)"
   else
     output="$(kscreen-doctor -o 2>/dev/null || true)"
   fi
 
+  primary_block="$(awk -v output_name="${PRIMARY_OUTPUT}" '
+    /^Output:/ {
+      if (in_block) {
+        exit
+      }
+      if ($0 ~ ("(^|[[:space:]])" output_name "([[:space:]]|$)")) {
+        in_block = 1
+      }
+    }
+    in_block { print }
+  ' <<<"${output}")"
+
   if [[ "${DEBUG}" == "1" ]]; then
-    local primary_line
-    primary_line="$(grep -m1 -E "Output:.*[[:space:]]${PRIMARY_OUTPUT}[[:space:]]" <<<"${output}" || true)"
-    log_debug "primary line: ${primary_line:-<missing>}"
+    if [[ -n "${primary_block}" ]]; then
+      log_debug "primary block found for ${PRIMARY_OUTPUT}"
+    else
+      log_debug "primary block not found for ${PRIMARY_OUTPUT}"
+    fi
   fi
 
-  grep -qE "Output:.*[[:space:]]${PRIMARY_OUTPUT}[[:space:]].*\\benabled\\b" <<<"${output}"
+  [[ -n "${primary_block}" ]] && grep -qw "enabled" <<<"${primary_block}"
 }
 
 while true; do
