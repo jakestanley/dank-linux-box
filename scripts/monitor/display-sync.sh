@@ -31,19 +31,7 @@ is_primary_enabled() {
   fi
 
   if jq -e --arg name "${PRIMARY_OUTPUT}" '
-    def outputs:
-      if type == "object" and (.outputs? | type) == "array" then .outputs
-      elif type == "array" then .
-      else []
-      end;
-    any(
-      outputs[];
-      ((.name? // "") == $name)
-      and (
-        ((.enabled? // false) == true)
-        or ((.status? // "") == "enabled")
-      )
-    )
+    any(.outputs[]?; (.name == $name) and (.enabled == true))
   ' <<<"${output}" >/dev/null 2>&1; then
     [[ "${DEBUG}" == "1" ]] && log_debug "primary ${PRIMARY_OUTPUT} detected as enabled"
     return 0
