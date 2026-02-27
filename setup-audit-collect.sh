@@ -107,5 +107,27 @@ run_to_file "$OUT_DIR/boot-time.txt" bash -lc 'systemd-analyze time'
 run_to_file "$OUT_DIR/boot-blame-top50.txt" bash -lc 'systemd-analyze blame | head -n 50'
 run_to_file "$OUT_DIR/boot-critical-chain.txt" bash -lc 'systemd-analyze critical-chain --no-pager'
 
+# User-level stuff that is NOT reproducible via dnf
+run_to_file "$OUT_DIR/home-dotfiles-tree.txt" bash -lc 'ls -a ~'
+run_to_file "$OUT_DIR/home-config-tree.txt" bash -lc 'ls -a ~/.config'
+run_to_file "$OUT_DIR/home-local-bin.txt" bash -lc 'ls -a ~/.local/bin 2>/dev/null || true'
+run_to_file "$OUT_DIR/home-local-share.txt" bash -lc 'ls -a ~/.local/share 2>/dev/null || true'
+
+# SSH keys + config (you WILL forget this otherwise)
+run_to_file "$OUT_DIR/ssh-config.txt" bash -lc 'test -f ~/.ssh/config && cat ~/.ssh/config || echo "no ssh config"'
+run_to_file "$OUT_DIR/ssh-pubkeys.txt" bash -lc 'ls ~/.ssh/*.pub 2>/dev/null || true'
+
+# Steam / Proton / custom runtime junk
+run_to_file "$OUT_DIR/steam-runtime.txt" bash -lc 'ls -a ~/.steam 2>/dev/null || true'
+run_to_file "$OUT_DIR/proton-ge.txt" bash -lc 'ls -a ~/.steam/root/compatibilitytools.d 2>/dev/null || true'
+
+# Custom system overrides
+run_to_file "$OUT_DIR/systemd-overrides.txt" bash -lc 'sudo find /etc/systemd -type f'
+run_to_file "$OUT_DIR/etc-modified.txt" bash -lc 'sudo find /etc -type f -mtime -30'
+
+tar czf setup-audit/home-config-backup.tar.gz ~/.config ~/.local/bin ~/.ssh
+
 log "Done. Wrote: $OUT_DIR"
-log "Next: git add setup-audit/state && commit, unless you enjoy losing work."
+rsync -avF setup-audit jake@Turing.local:~/
+
+log "Copying to Turing"
