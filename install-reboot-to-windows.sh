@@ -52,7 +52,7 @@ fi
 
 # GUI confirm (prefer kdialog, then zenity). If neither exists, refuse.
 confirm() {
-  local msg="Reboot into Windows on next boot?"
+  local msg="Reboot into Windows now?"
   if command -v kdialog >/dev/null 2>&1; then
     kdialog --title "Reboot to Windows" --warningyesno "$msg"
     return $?
