@@ -84,12 +84,13 @@ run_root efibootmgr -n "$WIN_BOOT_ID"
 run_root systemctl reboot
 EOF
 
-# Inject the discovered boot id into the script (as an exported variable at the top)
-# This keeps the launcher self-contained.
+# Inject the discovered boot id after the shebang.
+# Keep shebang on line 1 so desktop launchers can execute the script directly.
 tmp="$(mktemp)"
 {
+  head -n 1 "$REBOOT_SCRIPT"
   echo "WIN_BOOT_ID=\"$WIN_BOOT_ID\""
-  cat "$REBOOT_SCRIPT"
+  tail -n +2 "$REBOOT_SCRIPT"
 } > "$tmp"
 mv "$tmp" "$REBOOT_SCRIPT"
 chmod +x "$REBOOT_SCRIPT"
