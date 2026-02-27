@@ -1,3 +1,31 @@
+# Goals
+
+To achieve a minimal Linux installation that:
+- Can be rolled back with Snapper
+- GRUB + systemd.targets for enabling different workflows
+    - think ML workloads and APIs, that can be turned off for pure gaming
+- Supports nvidia GPU
+    - legit nvidia drivers
+- Has Steam
+    - mangohud
+    - gamemoded/gamemoderun
+- Uses GE-Proton
+
+
+# Setup
+
+## 1. Booted with Snapper
+- Install Fedora with minimal base
+- Partition whole disk (let Fedora decide)
+- Set up users, etc
+- Set up Snapper
+- Test Snapper
+
+Do not continue until Snapper is tested and fully working with `undochange` and `rollback`
+
+### Testing
+
+
 # Scripts & Utilities
 
 ## display-sync
