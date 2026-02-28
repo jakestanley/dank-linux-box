@@ -44,7 +44,7 @@ function Set-FileContentIfChanged {
 function Get-ImageMagickCommand {
     $cmd = Get-Command magick -ErrorAction SilentlyContinue
     if ($null -eq $cmd) {
-        throw "ImageMagick is required to create a Windows .ico from Fedora SVG. Install ImageMagick so 'magick' is available in PATH."
+        throw "ImageMagick is required to create a Windows .ico from Linux SVG. Install ImageMagick so 'magick' is available in PATH."
     }
     return $cmd.Source
 }
@@ -69,7 +69,7 @@ function Get-CSharpCompiler {
     throw "C# compiler not found. Install .NET Framework developer tools so csc.exe is available."
 }
 
-function Get-FedoraFirmwareIdentifier {
+function Get-LinuxFirmwareIdentifier {
     $output = & bcdedit /enum firmware 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "bcdedit failed while enumerating firmware entries.`n$output"
@@ -80,7 +80,7 @@ function Get-FedoraFirmwareIdentifier {
 
     $exactShimId = $null
     $shimFamilyId = $null
-    $fedoraAnyId = $null
+    $linuxAnyId = $null
 
     foreach ($block in $blocks) {
         $pathMatch = [Regex]::Match($block, '(?im)^\s*path\s+(\\EFI\\[^\r\n]+)\s*$')
@@ -96,48 +96,48 @@ function Get-FedoraFirmwareIdentifier {
 
         $idValue = $idMatch.Groups[1].Value
 
-        if ($pathValue -imatch '^\\EFI\\FEDORA\\SHIM\.EFI$') {
+        if ($pathValue -imatch '^\\EFI\\SYSTEMD\\SYSTEMD-BOOTX64\.EFI$') {
             $exactShimId = $idValue
             break
         }
 
-        if (-not $shimFamilyId -and $pathValue -imatch '^\\EFI\\FEDORA\\SHIM[^\\]*\.EFI$') {
+        if (-not $shimFamilyId -and $pathValue -imatch '^\\EFI\\SYSTEMD\\BOOTX64\.EFI$') {
             $shimFamilyId = $idValue
         }
 
-        if (-not $fedoraAnyId -and $pathValue -imatch '^\\EFI\\FEDORA\\.+\.EFI$') {
-            $fedoraAnyId = $idValue
+        if (-not $linuxAnyId -and $pathValue -imatch '^\\EFI\\SYSTEMD\\.+\.EFI$') {
+            $linuxAnyId = $idValue
         }
     }
 
     if ($exactShimId) { return $exactShimId }
     if ($shimFamilyId) { return $shimFamilyId }
-    if ($fedoraAnyId) { return $fedoraAnyId }
+    if ($linuxAnyId) { return $linuxAnyId }
 
-    throw "Could not find any Fedora firmware entry under \EFI\FEDORA\ in 'bcdedit /enum firmware'."
+    throw "Could not find any firmware entry under \EFI\SYSTEMD\ in 'bcdedit /enum firmware'."
 }
 
-function Confirm-FedoraIdentifier {
+function Confirm-LinuxIdentifier {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Identifier
     )
 
     Write-Host ''
-    Write-Host "Detected Fedora firmware identifier: $Identifier"
+    Write-Host "Detected Linux firmware identifier: $Identifier"
     $answer = Read-Host 'Proceed with this identifier? [y/N]'
     if ($answer -notmatch '^(?i:y(?:es)?)$') {
         throw 'Installation cancelled by user before making changes.'
     }
 }
 
-function Download-FedoraLogo {
+function Download-LinuxLogo {
     param(
         [Parameter(Mandatory = $true)]
         [string]$OutFile
     )
 
-    $commonsUrl = 'https://upload.wikimedia.org/wikipedia/commons/3/3f/Fedora_logo.svg'
+    $commonsUrl = 'https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg'
     $tmpOutFile = "$OutFile.download"
     Invoke-WebRequest -Uri $commonsUrl -OutFile $tmpOutFile -UseBasicParsing
     Move-Item -LiteralPath $tmpOutFile -Destination $OutFile -Force
@@ -169,7 +169,7 @@ function Convert-SvgToIco {
 
             & $MagickPath $SvgPath -background none -resize "${size}x${size}" "png32:$tmpPng"
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tmpPng)) {
-                throw "ImageMagick failed rendering Fedora SVG at ${size}x${size}."
+                throw "ImageMagick failed rendering Linux SVG at ${size}x${size}."
             }
 
             & $MagickPath "png32:$tmpPng" -channel A -fx "u<1 ? u*$edgeAlphaMultiplier : u" +channel "png32:$tmpPng"
@@ -245,7 +245,7 @@ function Build-RebootExe {
         [Parameter(Mandatory = $true)]
         [string]$CscPath,
         [Parameter(Mandatory = $true)]
-        [string]$FedoraIdentifier,
+        [string]$LinuxIdentifier,
         [Parameter(Mandatory = $true)]
         [string]$IconPath,
         [Parameter(Mandatory = $true)]
@@ -265,7 +265,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        string fedoraId = "__FEDORA_ID__";
+        string linuxId = "__SYSTEMD_ID__";
         bool confirmed = false;
         foreach (string arg in args)
         {
@@ -279,8 +279,8 @@ internal static class Program
         if (!confirmed)
         {
             DialogResult result = MessageBox.Show(
-                "Reboot into Fedora now?",
-                "Reboot to Fedora",
+                "Reboot into Linux now?",
+                "Reboot to Linux",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
             if (result != DialogResult.Yes)
@@ -306,20 +306,20 @@ internal static class Program
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to elevate: " + ex.Message, "Reboot to Fedora", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Failed to elevate: " + ex.Message, "Reboot to Linux", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
         }
 
         try
         {
-            RunHidden("bcdedit", "/set {fwbootmgr} bootsequence " + fedoraId);
+            RunHidden("bcdedit", "/set {fwbootmgr} bootsequence " + linuxId);
             RunHidden("shutdown", "/r /t 0");
             return 0;
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Failed to set boot target or reboot: " + ex.Message, "Reboot to Fedora", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("Failed to set boot target or reboot: " + ex.Message, "Reboot to Linux", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
     }
@@ -354,7 +354,7 @@ internal static class Program
 }
 '@
 
-    $source = $sourceTemplate.Replace('__FEDORA_ID__', $FedoraIdentifier)
+    $source = $sourceTemplate.Replace('__SYSTEMD_ID__', $LinuxIdentifier)
     Set-FileContentIfChanged -Path $SourcePath -Content $source
 
     & $CscPath `
@@ -373,34 +373,34 @@ internal static class Program
 }
 
 $startMenuProgramsDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-$shortcutPath = Join-Path $startMenuProgramsDir 'Reboot to Fedora.lnk'
+$shortcutPath = Join-Path $startMenuProgramsDir 'Reboot to Linux.lnk'
 
 Ensure-Administrator
 
-Write-Host 'Resolving Fedora firmware identifier from bcdedit...'
-$fedoraId = Get-FedoraFirmwareIdentifier
-Confirm-FedoraIdentifier -Identifier $fedoraId
+Write-Host 'Resolving Linux firmware identifier from bcdedit...'
+$linuxId = Get-LinuxFirmwareIdentifier
+Confirm-LinuxIdentifier -Identifier $linuxId
 
 $magickPath = Get-ImageMagickCommand
 $cscPath = Get-CSharpCompiler
 
-$installDir = Join-Path $env:LOCALAPPDATA 'RebootToFedora'
-$sourcePath = Join-Path $installDir 'reboot-to-fedora.cs'
-$exeLauncherPath = Join-Path $installDir 'reboot-to-fedora.exe'
-$svgIconPath = Join-Path $installDir 'fedora-logo.svg'
-$icoIconPath = Join-Path $installDir 'fedora-logo.ico'
+$installDir = Join-Path $env:LOCALAPPDATA 'RebootToLinux'
+$sourcePath = Join-Path $installDir 'reboot-to-linux.cs'
+$exeLauncherPath = Join-Path $installDir 'reboot-to-linux.exe'
+$svgIconPath = Join-Path $installDir 'linux-logo.svg'
+$icoIconPath = Join-Path $installDir 'linux-logo.ico'
 
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 New-Item -ItemType Directory -Path $startMenuProgramsDir -Force | Out-Null
 
-Write-Host 'Downloading Fedora logo...'
-Download-FedoraLogo -OutFile $svgIconPath
+Write-Host 'Downloading Linux logo...'
+Download-LinuxLogo -OutFile $svgIconPath
 
-Write-Host 'Converting Fedora SVG to Windows ICO...'
+Write-Host 'Converting Linux SVG to Windows ICO...'
 Convert-SvgToIco -MagickPath $magickPath -SvgPath $svgIconPath -IcoPath $icoIconPath
 
 Write-Host 'Building native launcher executable...'
-Build-RebootExe -CscPath $cscPath -FedoraIdentifier $fedoraId -IconPath $icoIconPath -SourcePath $sourcePath -ExePath $exeLauncherPath
+Build-RebootExe -CscPath $cscPath -LinuxIdentifier $linuxId -IconPath $icoIconPath -SourcePath $sourcePath -ExePath $exeLauncherPath
 
 if (-not (Test-Path -LiteralPath $icoIconPath)) {
     throw "Expected icon file was not created: $icoIconPath"
@@ -416,7 +416,7 @@ $shortcut.TargetPath = $exeLauncherPath
 $shortcut.Arguments = ''
 $shortcut.WorkingDirectory = $installDir
 $shortcut.IconLocation = $icoIconPath
-$shortcut.Description = 'Prompt and reboot into Fedora on next boot'
+$shortcut.Description = 'Prompt and reboot into Linux on next boot'
 $shortcut.Save()
 
 $savedShortcut = $wsh.CreateShortcut($shortcutPath)
@@ -426,11 +426,11 @@ if ($savedShortcut.IconLocation -notlike "$icoIconPath*") {
 
 Write-Host ''
 Write-Host 'Install complete.'
-Write-Host "Fedora identifier: $fedoraId"
+Write-Host "Linux identifier: $linuxId"
 Write-Host "Logo SVG: $svgIconPath"
 Write-Host "Logo ICO: $icoIconPath"
 Write-Host "Launcher Source: $sourcePath"
 Write-Host "Launcher EXE: $exeLauncherPath"
 Write-Host "Shortcut: $shortcutPath"
 Write-Host ''
-Write-Host 'You can pin "Reboot to Fedora" from the Start Menu to the taskbar.'
+Write-Host 'You can pin "Reboot to Linux" from the Start Menu to the taskbar.'
