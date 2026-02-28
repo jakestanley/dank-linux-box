@@ -11,7 +11,6 @@ To achieve a minimal Linux installation that:
     - gamemoded/gamemoderun
 - Uses GE-Proton
 
-
 # Setup
 
 ## 1. Booted with Snapper
@@ -27,6 +26,11 @@ Do not continue until Snapper is tested and fully working with `undochange` and 
 
 
 # Scripts & Utilities
+
+
+## install-reboot-to-windows.sh
+
+Don't use if you're on NixOS as it's set up in the nixos repository
 
 ## display-sync
 
